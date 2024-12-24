@@ -20,6 +20,7 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
     //para solicitar el permiso del bluetooth
     override init() {
         super.init()
+        centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -29,12 +30,7 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    // En el método init, inicializa el gestor central con un delegado
-    //para solicitar el permiso del bluetooth
-    if (self.centralManager == nil) {
-        self.centralManager = CBCentralManager(delegate: self, queue: nil)
-    }
-
+  NSLog("DEBUG: Method called: \(call.method)")
     //para iniciar la variable result
     self.flutterResult = result
     //result("iOS " + UIDevice.current.systemVersion)
@@ -104,9 +100,9 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
             result(self.discoveredDevices)
         }
 
-    } 
+    }
     else if call.method == "connect"{
-        let macAddress = call.arguments as! String 
+        let macAddress = call.arguments as! String
         // Busca el dispositivo con la dirección MAC dada
         let peripherals = centralManager?.retrievePeripherals(withIdentifiers: [UUID(uuidString: macAddress)!])
         guard let peripheral = peripherals?.first else {
@@ -134,7 +130,7 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
                 result(false)
             }
         }
-  
+
     }else if call.method == "connectionstatus"{
       if connectedPeripheral?.state == CBPeripheralState.connected {
           //print("El dispositivo periférico está conectado.")
@@ -143,45 +139,44 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
           //print("El dispositivo periférico no está conectado.")
           result(false)
       }
-    }else if call.method == "writebytes"{
+    }
+    else if call.method == "writebytes" {
+        NSLog("DEBUG: writebytes method called")
         guard let arguments = call.arguments as? [Int] else {
-          // Manejar el caso en que los argumentos no son del tipo esperado
-          return
+            NSLog("DEBUG: Arguments are not in the expected format")
+            result(false)
+            return
         }
-        //let bytes = arguments
-        self.bytes = arguments.map { UInt8($0) } //No se esta usando
+        print("DEBUG: Received arguments: \(arguments)")
 
+        self.bytes = arguments.map { UInt8($0) }
         if let characteristic = targetCharacteristic {
-            // Utiliza la variable characteristic desempaquetada aquí
-            //print("bytes count: \(self.bytes?.count)")
+            NSLog("DEBUG: Found targetCharacteristic")
             guard let listbytes = call.arguments as? [UInt8] else {
-                // Manejar el caso en que los argumentos no son del tipo esperado
+                NSLog("DEBUG: Unable to cast arguments to [UInt8]")
+                result(false)
                 return
             }
-            //self.connectedPeripheral?.writeValue(Data(listbytes), for: characteristic, type: .withoutResponse) //.withResponse, .withoutResponse
+            NSLog("DEBUG: Data to be sent: \(listbytes)")
 
-            //Imprimir bloques de 150 bytes en la impresora para que no se sature
-            let data: Data = Data(listbytes) // Datos que deseas imprimir
-            let chunkSize = 150 // Tamaño de cada fragmento en bytes
-
+            let data: Data = Data(listbytes)
+            let chunkSize = 128
             var offset = 0
             while offset < data.count {
                 let chunkRange = offset..<min(offset + chunkSize, data.count)
                 let chunkData = data.subdata(in: chunkRange)
-                //print("chunkData count: \(chunkData.count)")
-                // Envía el fragmento para imprimir utilizando la característica deseada
+                NSLog("DEBUG: Sending chunk of size: \(chunkData.count)")
                 self.connectedPeripheral?.writeValue(chunkData, for: characteristic, type: .withoutResponse)
-
                 offset += chunkSize
             }
-            //la respuesta va en peripheral
-            //self.flutterResult?(true)
+            result(true)
+            NSLog("DEBUG: Data sent successfully")
         } else {
-            print("No hay caracteristica para imprimir")
+            NSLog("DEBUG: No targetCharacteristic available")
             result(false)
         }
-
-      } else if call.method == "printstring"{
+    }
+    else if call.method == "printstring"{
         self.stringprint = call.arguments as! String
         //print("llego a printstring\(self.stringprint)")
         if let characteristic = targetCharacteristic {
@@ -229,12 +224,14 @@ public class SwiftPrintBluetoothThermalPlugin: NSObject, CBCentralManagerDelegat
             print("No hay caracteristica para imprimir")
             result(false)
         }
-        } else if call.method == "disconnect"{
+        }
+    else if call.method == "disconnect"{
         centralManager?.cancelPeripheralConnection(connectedPeripheral)
         targetCharacteristic = nil
         //la respuesta va en centralManager segunda funcion
         //result(true)
-      } else {
+      }
+    else {
         result(FlutterMethodNotImplemented) // Si se llama otro método que no está implementado, se devuelve un error
       }
   }
